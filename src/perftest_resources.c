@@ -3224,7 +3224,7 @@ void ctx_set_send_reg_wqes(struct pingpong_context *ctx,
 
 			ctx->wr[i*user_param->post_list + j].sg_list = &ctx->sge_list[i*user_param->post_list + j];
 			ctx->wr[i*user_param->post_list + j].num_sge = MAX_SEND_SGE;
-			ctx->wr[i*user_param->post_list + j].wr_id   = i;
+			ctx->wr[i*user_param->post_list + j].wr_id   = build_wr_id(i * user_param->post_list + j, i);;
 
 			if (j == (user_param->post_list - 1)) {
 				ctx->wr[i*user_param->post_list + j].next = NULL;
@@ -3377,7 +3377,7 @@ int ctx_set_recv_wqes(struct pingpong_context *ctx,struct perftest_parameters *u
 
 			ctx->rwr[i * user_param->recv_post_list + j].sg_list = &ctx->recv_sge_list[i * user_param->recv_post_list + j];
 			ctx->rwr[i * user_param->recv_post_list + j].num_sge = MAX_RECV_SGE;
-			ctx->rwr[i * user_param->recv_post_list + j].wr_id   = i;
+			ctx->rwr[i * user_param->recv_post_list + j].wr_id   = build_wr_id(i * user_param->recv_post_list + j, i);
 
 			if (j == (user_param->recv_post_list - 1))
 				ctx->rwr[i * user_param->recv_post_list + j].next = NULL;
@@ -3771,7 +3771,7 @@ int run_iter_bw(struct pingpong_context *ctx,struct perftest_parameters *user_pa
 				ne = ibv_poll_cq(ctx->send_cq, user_param->cqe_poll, wc);
 				if (ne > 0) {
 					for (i = 0; i < ne; i++) {
-						qp_index = (int)wc[i].wr_id;
+						qp_index = (int)get_wr_id_qp_index(wc[i].wr_id);
 
 						if (wc[i].status != IBV_WC_SUCCESS) {
 							NOTIFY_COMP_ERROR_SEND(wc[i],totscnt,totccnt);
@@ -3919,7 +3919,7 @@ int run_iter_bw_server(struct pingpong_context *ctx, struct perftest_parameters 
 				}
 
 				for (i = 0; i < ne; i++) {
-					qp_index = (int)wc[i].wr_id;
+					qp_index = (int)get_wr_id_qp_index(wc[i].wr_id);
 					if (wc[i].status != IBV_WC_SUCCESS) {
 
 						NOTIFY_COMP_ERROR_RECV(wc[i],rcnt_for_qp[qp_index]);
@@ -3967,7 +3967,7 @@ int run_iter_bw_server(struct pingpong_context *ctx, struct perftest_parameters 
 						}
 						if (SIZE(user_param->connection_type,user_param->size,!(int)user_param->machine) <= (ctx->cycle_buffer / 2) &&
 								user_param->recv_post_list == 1) {
-							increase_loc_addr(ctx->rwr[(int)wc[i].wr_id].sg_list,
+							increase_loc_addr(ctx->rwr[(int)get_wr_index(wc[i].wr_id)].sg_list,
 									user_param->size,
 									posted_per_qp[qp_index],
 									ctx->rx_buffer_addr[qp_index] + address_flows_offset,
@@ -3988,7 +3988,7 @@ int run_iter_bw_server(struct pingpong_context *ctx, struct perftest_parameters 
 								sne = ibv_poll_cq(ctx->send_cq,user_param->tx_depth,swc);
 								if (sne > 0) {
 									for (j = 0; j < sne; j++) {
-										swc_qp_index = swc[j].wr_id;
+										swc_qp_index = get_wr_id_qp_index(swc[j].wr_id);
 										if (swc[j].status != IBV_WC_SUCCESS) {
 											fprintf(stderr, "Poll send CQ error status=%u qp %d credit=%lu scredit=%ld\n",
 													swc[j].status,(int)swc[j].qp_num,
@@ -4149,7 +4149,7 @@ int run_iter_bw_infinitely(struct pingpong_context *ctx,struct perftest_paramete
 			if (ne > 0) {
 
 				for (i = 0; i < ne; i++) {
-					qp_index = (int)wc[i].wr_id;
+					qp_index = (int)get_wr_id_qp_index(wc[i].wr_id);
 					if (wc[i].status != IBV_WC_SUCCESS) {
 						NOTIFY_COMP_ERROR_SEND(wc[i],ctx->scnt[qp_index],ctx->scnt[qp_index]);
 						return_value = FAILURE;
@@ -4237,7 +4237,7 @@ int run_iter_bw_infinitely_server(struct pingpong_context *ctx, struct perftest_
 		if (ne > 0) {
 
 			for (i = 0; i < ne; i++) {
-				qp_index = (int)wc[i].wr_id;
+				qp_index = (int)get_wr_id_qp_index(wc[i].wr_id);
 				if (wc[i].status != IBV_WC_SUCCESS) {
 					fprintf(stderr,"A completion with Error in run_infinitely_bw_server function");
 					return_value = FAILURE;
@@ -4277,7 +4277,7 @@ int run_iter_bw_infinitely_server(struct pingpong_context *ctx, struct perftest_
 							sne = ibv_poll_cq(ctx->send_cq,user_param->tx_depth,swc);
 							if (sne > 0) {
 								for (j = 0; j < sne; j++) {
-									swc_qp_index = swc[j].wr_id;
+									swc_qp_index = get_wr_id_qp_index(swc[j].wr_id);
 									if (swc[j].status != IBV_WC_SUCCESS) {
 										fprintf(stderr, "Poll send CQ error status=%u qp %d credit=%lu scredit=%lu\n",
 												swc[j].status,(int)swc[j].qp_num,
@@ -4482,7 +4482,7 @@ int run_iter_bi(struct pingpong_context *ctx,
 			}
 
 			for (i = 0; i < recv_ne; i++) {
-				qp_index = (int)wc[i].wr_id;
+				qp_index = (int)get_wr_id_qp_index(wc[i].wr_id);
 				if (wc[i].status != IBV_WC_SUCCESS) {
 					NOTIFY_COMP_ERROR_RECV(wc[i],totrcnt);
 					return_value = FAILURE;
@@ -4523,7 +4523,7 @@ int run_iter_bi(struct pingpong_context *ctx,
 
 					if (SIZE(user_param->connection_type,user_param->size,!(int)user_param->machine) <= (ctx->cycle_buffer / 2) &&
 							user_param->recv_post_list == 1) {
-						increase_loc_addr(ctx->rwr[wc[i].wr_id].sg_list,
+						increase_loc_addr(ctx->rwr[get_wr_index(wc[i].wr_id)].sg_list,
 								user_param->size,
 								posted_per_qp[qp_index],
 								ctx->rx_buffer_addr[qp_index],user_param->connection_type,
@@ -4546,18 +4546,18 @@ int run_iter_bi(struct pingpong_context *ctx,
 								if (credit_wc.status != IBV_WC_SUCCESS) {
 									fprintf(stderr, "Poll send CQ error status=%u qp %d credit=%lu scredit=%d\n",
 											credit_wc.status,(int)credit_wc.qp_num,
-											rcnt_for_qp[credit_wc.wr_id],scredit_for_qp[credit_wc.wr_id]);
+											rcnt_for_qp[get_wr_id_qp_index(credit_wc.wr_id)],scredit_for_qp[get_wr_id_qp_index(credit_wc.wr_id)]);
 									return_value = FAILURE;
 									goto cleaning;
 								}
 
 								//coverity[uninit_use]
 								if (credit_wc.opcode == IBV_WC_RDMA_WRITE) {
-									scredit_for_qp[credit_wc.wr_id]--;
+									scredit_for_qp[get_wr_id_qp_index(credit_wc.wr_id)]--;
 									tot_scredit--;
 								} else  {
 									totccnt += user_param->cq_mod;
-									ctx->ccnt[(int)credit_wc.wr_id] += user_param->cq_mod;
+									ctx->ccnt[(int)get_wr_id_qp_index(credit_wc.wr_id)] += user_param->cq_mod;
 
 									if (user_param->noPeak == OFF) {
 										if ((user_param->test_type == ITERATIONS && (totccnt > tot_iters)))
@@ -4614,11 +4614,11 @@ int run_iter_bi(struct pingpong_context *ctx,
 						return_value = FAILURE;
 						goto cleaning;
 					}
-					scredit_for_qp[wc_tx[i].wr_id]--;
+					scredit_for_qp[get_wr_id_qp_index(wc_tx[i].wr_id)]--;
 					tot_scredit--;
 				} else  {
 					totccnt += user_param->cq_mod;
-					ctx->ccnt[(int)wc_tx[i].wr_id] += user_param->cq_mod;
+					ctx->ccnt[(int)get_wr_id_qp_index(wc_tx[i].wr_id)] += user_param->cq_mod;
 
 					if (user_param->noPeak == OFF) {
 
@@ -4630,7 +4630,7 @@ int run_iter_bi(struct pingpong_context *ctx,
 
 					if (user_param->test_type==DURATION && user_param->state == SAMPLE_STATE) {
 						if (user_param->report_per_port) {
-							user_param->iters_per_port[user_param->port_by_qp[(int)wc[i].wr_id]] += user_param->cq_mod;
+							user_param->iters_per_port[user_param->port_by_qp[(int)get_wr_id_qp_index(wc[i].wr_id)]] += user_param->cq_mod;
 						}
 						user_param->iters += user_param->cq_mod;
 					}
@@ -4849,12 +4849,12 @@ int run_iter_lat_write_imm(struct pingpong_context *ctx,struct perftest_paramete
 				if ((user_param->test_type == DURATION || (rcnt + size_per_qp <= user_param->iters)) &&
 				    !user_param->use_unsolicited_write) {
 					if (user_param->use_srq) {
-						if (ibv_post_srq_recv(ctx->srq, &ctx->rwr[wc.wr_id], &bad_wr_recv)) {
+						if (ibv_post_srq_recv(ctx->srq, &ctx->rwr[get_wr_index(wc.wr_id)], &bad_wr_recv)) {
 							fprintf(stderr, "Couldn't post recv SRQ. QP = %d: counter=%lu\n",(int)wc.qp_num, rcnt);
 							return 1;
 						}
 					} else {
-						if (ibv_post_recv(ctx->qp[wc.wr_id], &ctx->rwr[wc.wr_id], &bad_wr_recv)) {
+						if (ibv_post_recv(ctx->qp[get_wr_id_qp_index(wc.wr_id)], &ctx->rwr[get_wr_index(wc.wr_id)], &bad_wr_recv)) {
 							fprintf(stderr, "Couldn't post recv: rcnt=%lu\n", rcnt);
 							return 15;
 						}
@@ -5078,13 +5078,13 @@ int run_iter_lat_send(struct pingpong_context *ctx,struct perftest_parameters *u
 					 */
 					if (user_param->test_type == DURATION || (rcnt + size_per_qp <= user_param->iters)) {
 						if (user_param->use_srq) {
-							if (ibv_post_srq_recv(ctx->srq, &ctx->rwr[wc.wr_id], &bad_wr_recv)) {
+							if (ibv_post_srq_recv(ctx->srq, &ctx->rwr[get_wr_index(wc.wr_id)], &bad_wr_recv)) {
 								fprintf(stderr, "Couldn't post recv SRQ. QP = %d: counter=%lu\n",(int)wc.qp_num, rcnt);
 								return 1;
 							}
 
 						} else {
-							if (ibv_post_recv(ctx->qp[wc.wr_id], &ctx->rwr[wc.wr_id], &bad_wr_recv)) {
+							if (ibv_post_recv(ctx->qp[get_wr_id_qp_index(wc.wr_id)], &ctx->rwr[get_wr_index(wc.wr_id)], &bad_wr_recv)) {
 								fprintf(stderr, "Couldn't post recv: rcnt=%lu\n", rcnt);
 								return 15;
 							}
@@ -5208,7 +5208,7 @@ int run_iter_lat_burst_server(struct pingpong_context *ctx, struct perftest_para
 		ne = ibv_poll_cq(ctx->recv_cq, user_param->burst_size, wc);
 		if (ne > 0) {
 			for (i = 0; i < ne; i++) {
-				qp_index = (int)wc[i].wr_id;
+				qp_index = (int)get_wr_id_qp_index(wc[i].wr_id);
 				if (wc[i].status != IBV_WC_SUCCESS) {
 					NOTIFY_COMP_ERROR_RECV(wc[i], rcnt);
 					free(wc);
@@ -5364,7 +5364,7 @@ polling:
 			ne = ibv_poll_cq(ctx->recv_cq, CTX_POLL_BATCH, wc);
 			if (ne > 0) {
 				for (i = 0; i < ne; i++) {
-					qp_index = (int)wc[i].wr_id;
+					qp_index = (int)get_wr_id_qp_index(wc[i].wr_id);
 					user_param->tcompleted[totrcnt] = get_cycles();
 					totrcnt++;
 					if (wc[i].status != IBV_WC_SUCCESS) {
